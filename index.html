@@ -1,238 +1,106 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ball Game</title>
     <style>
-        body {
-            margin: 0; padding: 0; overflow: hidden; background-color: #87CEEB;
-            font-family: sans-serif; user-select: none; -webkit-user-select: none;
-        }
-        canvas { display: block; }
-        
-        /* UI Elements */
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; }
-        #lives { position: absolute; top: 10px; left: 20px; font-size: 24px; font-weight: bold; color: red; }
-        
-        /* Message Box */
-        #message-box {
-            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8); color: white; padding: 20px 40px; border-radius: 10px;
-            font-size: 30px; font-weight: bold; text-align: center; pointer-events: auto;
-        }
-        #restart-btn {
-            margin-top: 15px; padding: 10px 20px; font-size: 18px; cursor: pointer;
-            background: #28a745; color: white; border: none; border-radius: 5px;
-        }
-
-        /* Controls */
-        .controls { position: absolute; bottom: 20px; pointer-events: auto; display: flex; gap: 10px; }
-        #left-controls { left: 20px; }
-        #right-controls { right: 20px; }
-        .btn {
-            width: 60px; height: 60px; background: rgba(0, 0, 0, 0.5); color: white;
-            border-radius: 50%; display: flex; justify-content: center; align-items: center;
-            font-size: 14px; font-weight: bold; border: 2px solid white;
-        }
-        .btn:active { background: rgba(0, 0, 0, 0.8); }
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: sans-serif; }
+        canvas { display: block; background: #87CEEB; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .controls { position: absolute; bottom: 10px; pointer-events: auto; display: flex; gap: 10px; }
+        #l-ctrl { left: 10px; } #r-ctrl { right: 10px; }
+        .btn { width: 70px; height: 70px; background: rgba(0,0,0,0.4); color: white; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        #lives { position: absolute; top: 10px; left: 10px; font-size: 30px; }
+        #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; pointer-events: auto; }
+        #msg { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; text-align: center; border-radius: 10px; z-index: 200; pointer-events: auto; }
     </style>
 </head>
 <body>
 
-    <canvas id="gameCanvas"></canvas>
+<div id="start-overlay">
+    <button style="padding: 20px 40px; font-size: 20px; background: green; color: white; border-radius: 30px;" onclick="startGame()">START GAME</button>
+</div>
 
-    <div id="ui-layer">
-        <div id="lives">❤️❤️❤️</div>
-        
-        <div id="left-controls" class="controls">
-            <div class="btn" id="btnLeft">LEFT</div>
-            <div class="btn" id="btnRight">RIGHT</div>
-        </div>
-        
-        <div id="right-controls" class="controls">
-            <div class="btn" id="btnJump">JUMP</div>
-            <div class="btn" id="btnDown">DOWN</div>
-        </div>
+<div id="msg">
+    <h1 id="txt"></h1>
+    <button onclick="location.reload()">വീണ്ടും കളിക്കുക</button>
+</div>
 
-        <div id="message-box">
-            <div id="message-text"></div>
-            <button id="restart-btn" onclick="resetGame()">വീണ്ടും കളിക്കുക</button>
-        </div>
-    </div>
+<div id="ui">
+    <div id="lives">❤️❤️❤️</div>
+    <div id="l-ctrl" class="controls"><div class="btn" id="left">LEFT</div><div class="btn" id="right">RIGHT</div></div>
+    <div id="r-ctrl" class="controls"><div class="btn" id="jump">JUMP</div></div>
+</div>
 
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-        
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+<canvas id="g"></canvas>
 
-        // Game Variables
-        let gameState = "playing"; // playing, won, lost
-        let lives = 3;
-        const groundY = canvas.height - 50;
+<script>
+const cvs = document.getElementById("g");
+const ctx = cvs.getContext("2d");
+let active = false;
+let life = 3;
 
-        // Objects
-        const player = {
-            x: 50, y: groundY - 20, radius: 15, dx: 0, dy: 0, speed: 5, jumpPower: -12, gravity: 0.6, grounded: true
-        };
+// Game Settings
+let p = { x: 50, y: 0, r: 15, dy: 0, speed: 4 };
+let hill = { x: 300, w: 100, h: 60 };
+let enemy = { x: 500, w: 30, h: 50, hit: false };
+let goal = { x: 800 };
 
-        const hill = { x: canvas.width * 0.4, y: groundY - 60, width: 80, height: 60 };
-        const enemy = { x: canvas.width * 0.75, y: groundY - 50, width: 30, height: 50, color: "red", swingTimer: 0 };
-        const finishLine = { x: canvas.width - 50, y: groundY - 100, width: 20, height: 100 };
+function startGame() {
+    document.getElementById("start-overlay").style.display = "none";
+    cvs.width = window.innerWidth;
+    cvs.height = window.innerHeight;
+    p.y = cvs.height - 70;
+    active = true;
+    loop();
+}
 
-        // Input state
-        const keys = { left: false, right: false, down: false };
+let keys = { l: false, r: false };
+document.getElementById("left").ontouchstart = () => keys.l = true;
+document.getElementById("left").ontouchend = () => keys.l = false;
+document.getElementById("right").ontouchstart = () => keys.r = true;
+document.getElementById("right").ontouchend = () => keys.r = false;
+document.getElementById("jump").ontouchstart = () => { if(p.y >= cvs.height - 70) p.dy = -12; };
 
-        // Touch Controls
-        document.getElementById("btnLeft").addEventListener("touchstart", (e) => { e.preventDefault(); keys.left = true; });
-        document.getElementById("btnLeft").addEventListener("touchend", (e) => { e.preventDefault(); keys.left = false; });
-        
-        document.getElementById("btnRight").addEventListener("touchstart", (e) => { e.preventDefault(); keys.right = true; });
-        document.getElementById("btnRight").addEventListener("touchend", (e) => { e.preventDefault(); keys.right = false; });
-        
-        document.getElementById("btnJump").addEventListener("touchstart", (e) => { 
-            e.preventDefault(); 
-            if (player.grounded) { player.dy = player.jumpPower; player.grounded = false; }
-        });
-        
-        document.getElementById("btnDown").addEventListener("touchstart", (e) => { e.preventDefault(); keys.down = true; });
-        document.getElementById("btnDown").addEventListener("touchend", (e) => { e.preventDefault(); keys.down = false; });
+function loop() {
+    if(!active) return;
+    ctx.clearRect(0, 0, cvs.width, cvs.height);
+    let ground = cvs.height - 50;
 
-        function drawPlayer() {
-            ctx.beginPath();
-            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-            ctx.fillStyle = "white";
-            ctx.fill();
-            ctx.closePath();
-        }
+    // Draw Ground & Hill
+    ctx.fillStyle = "green";
+    ctx.fillRect(0, ground, cvs.width, 50);
+    ctx.beginPath(); ctx.arc(hill.x, ground, 60, Math.PI, 0); ctx.fill();
 
-        function drawEnvironment() {
-            // Ground
-            ctx.fillStyle = "#228B22";
-            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+    // Draw Enemy & Goal
+    ctx.fillStyle = "red"; ctx.fillRect(enemy.x, ground - 50, 30, 50);
+    ctx.fillStyle = "black"; ctx.fillRect(enemy.x - 5, ground - 70, 5, 40); // Bat
+    ctx.fillStyle = "gold"; ctx.fillRect(goal.x, ground - 100, 20, 100);
 
-            // Starting Line
-            ctx.fillStyle = "white";
-            ctx.fillRect(20, groundY, 10, 50);
+    // Player Physics
+    if(keys.l) p.x -= p.speed;
+    if(keys.r) p.x += p.speed;
+    p.dy += 0.6; p.y += p.dy;
+    if(p.y > ground - p.r) { p.y = ground - p.r; p.dy = 0; }
 
-            // Hill (Simple rectangle for physics logic, looks like a block)
-            ctx.fillStyle = "#006400";
-            ctx.beginPath();
-            ctx.arc(hill.x + hill.width/2, groundY, hill.width/2 + 20, Math.PI, 0);
-            ctx.fill();
+    // Collision
+    if(Math.abs(p.x - enemy.x) < 30 && p.y > ground - 60 && !enemy.hit) {
+        life--; enemy.hit = true;
+        document.getElementById("lives").innerText = "❤️".repeat(life);
+        p.x -= 50; 
+        setTimeout(() => enemy.hit = false, 1000);
+        if(life <= 0) { active = false; showMsg("നീ തോറ്റെടാ"); }
+    }
 
-            // Enemy (Red block with a bat)
-            ctx.fillStyle = enemy.color;
-            ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
-            // Bat
-            ctx.fillStyle = "black";
-            if (enemy.swingTimer > 0) {
-                ctx.fillRect(enemy.x - 40, enemy.y + 10, 50, 10); // Swung bat
-                enemy.swingTimer--;
-            } else {
-                ctx.fillRect(enemy.x - 10, enemy.y - 20, 10, 40); // Idle bat
-            }
+    if(p.x > goal.x) { active = false; showMsg("അടുത്ത ഘട്ടം"); }
 
-            // Finish Line
-            ctx.fillStyle = "yellow";
-            ctx.fillRect(finishLine.x, finishLine.y, finishLine.width, finishLine.height);
-        }
+    ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+    requestAnimationFrame(loop);
+}
 
-        function updatePhysics() {
-            if (gameState !== "playing") return;
-
-            // Horizontal Movement
-            if (keys.left) player.dx = -player.speed;
-            else if (keys.right) player.dx = player.speed;
-            else player.dx = 0;
-
-            player.x += player.dx;
-
-            // Prevent going out of left screen
-            if (player.x - player.radius < 0) player.x = player.radius;
-
-            // Gravity & Vertical Movement
-            player.dy += player.gravity;
-            if (keys.down) player.dy += 1; // Fast fall
-            player.y += player.dy;
-
-            // Ground Collision
-            if (player.y + player.radius >= groundY) {
-                player.y = groundY - player.radius;
-                player.dy = 0;
-                player.grounded = true;
-            } else {
-                player.grounded = false;
-            }
-
-            // Enemy Logic (Hit detection)
-            let distToEnemy = enemy.x - player.x;
-            if (distToEnemy > 0 && distToEnemy < 60 && player.y > groundY - 80 && player.dy >= 0) {
-                // Enemy Hits Player!
-                enemy.swingTimer = 15;
-                player.dx = -15; // Throw back
-                player.dy = -10; // Throw up
-                player.x -= 20; // Instant push
-                lives--;
-                updateLivesDisplay();
-                
-                if (lives <= 0) {
-                    endGame("നീ തോറ്റെടാ", "red");
-                }
-            }
-
-            // Finish Line Logic
-            if (player.x + player.radius > finishLine.x) {
-                endGame("അടുത്ത ഘട്ടം", "gold");
-            }
-        }
-
-        function updateLivesDisplay() {
-            let hearts = "";
-            for(let i=0; i<lives; i++) hearts += "❤️";
-            document.getElementById("lives").innerText = hearts;
-        }
-
-        function endGame(msg, color) {
-            gameState = "ended";
-            const msgBox = document.getElementById("message-box");
-            const msgText = document.getElementById("message-text");
-            msgText.innerText = msg;
-            msgText.style.color = color;
-            msgBox.style.display = "block";
-        }
-
-        function resetGame() {
-            lives = 3;
-            gameState = "playing";
-            player.x = 50;
-            player.y = groundY - 20;
-            player.dx = 0;
-            player.dy = 0;
-            updateLivesDisplay();
-            document.getElementById("message-box").style.display = "none";
-        }
-
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawEnvironment();
-            drawPlayer();
-            updatePhysics();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Handle resize
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
-
-        // Start
-        updateLivesDisplay();
-        gameLoop();
-
-    </script>
+function showMsg(t) {
+    document.getElementById("msg").style.display = "block";
+    document.getElementById("txt").innerText = t;
+}
+</script>
 </body>
 </html>
